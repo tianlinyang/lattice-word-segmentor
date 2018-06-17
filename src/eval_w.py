@@ -83,9 +83,8 @@ if __name__ == "__main__":
 
     evaluator = eval_w(packer, l_map, args.eva_matrix)
 
-    # 得到规则矩阵
     r_l_map = {v: k for k, v in l_map.items()}
-    matching_tag = utils.create_matching_labels_matrix(r_l_map).tolist()  # 返回的是一个numpy from*to
+    matching_tag = utils.create_matching_labels_matrix(r_l_map).tolist()
     illegal_idx = []
     for i in range(len(matching_tag)):
         for j in range(len(matching_tag[i])):
