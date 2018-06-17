@@ -287,7 +287,7 @@ if __name__ == "__main__":
                     'l_map': l_map,
                 }, {'track_list': track_list,
                     'args': vars(args)
-                    }, args.checkpoint + 'lattice_lstm_crf_' + args.dataset + '_' + str(args.embedding_dim))
+                    }, args.checkpoint + 'lattice_word_seg')
             except Exception as inst:
                 print(inst)
         else:
