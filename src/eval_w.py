@@ -22,8 +22,8 @@ import functools
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluating BLSTM-CRF')
-    parser.add_argument('--load_arg', default='./checkpoint/lattice_word_seg.json.json', help='arg json file path')
-    parser.add_argument('--load_check_point', default='./checkpoint/lattice_word_seg.json.model', help='checkpoint path')
+    parser.add_argument('--load_arg', default='./checkpoint/lattice_word_seg.json', help='arg json file path')
+    parser.add_argument('--load_check_point', default='./checkpoint/lattice_word_seg.model', help='checkpoint path')
     parser.add_argument('--gpu',type=int, default=0, help='gpu id')
     parser.add_argument('--eva_matrix', choices=['a', 'fa'], default='fa', help='use f1 and accuracy or accuracy alone')
     parser.add_argument('--test_file', default='./data/test.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
