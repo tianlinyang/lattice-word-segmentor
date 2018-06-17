@@ -108,4 +108,4 @@ if __name__ == "__main__":
     parser.add_argument('--out_lexicon_file', default='', help='out lexicon file')
     parser.add_argument('--dict_file', default='', help='each sentence in input file get its own lexicon from this emd file which could be treated as a dict file')
     args = parser.parse_args()
-    get_words_list(args.text_file, args.lexicon_file, args.dict_file)
+    get_words_list(args.input_text_file, args.out_lexicon_file, args.dict_file)
