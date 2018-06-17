@@ -22,12 +22,12 @@ import functools
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluating BLSTM-CRF')
-    parser.add_argument('--load_arg', default='./checkpoint/lattice_lstm_crf_mws_50.json', help='arg json file path')
-    parser.add_argument('--load_check_point', default='./checkpoint/lattice_lstm_crf_mws_50.model', help='checkpoint path')
+    parser.add_argument('--load_arg', default='./checkpoint/lattice_word_seg.json.json', help='arg json file path')
+    parser.add_argument('--load_check_point', default='./checkpoint/lattice_word_seg.json.model', help='checkpoint path')
     parser.add_argument('--gpu',type=int, default=0, help='gpu id')
     parser.add_argument('--eva_matrix', choices=['a', 'fa'], default='fa', help='use f1 and accuracy or accuracy alone')
-    parser.add_argument('--test_file', default='./data/MWS/mannual-test-1500.BIES.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
-    parser.add_argument('--lexicon_test_file', default='./data/MWS/lexicon.mws.test1500.tree.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
+    parser.add_argument('--test_file', default='./data/test.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
+    parser.add_argument('--lexicon_test_file', default='./data/lexicon.test.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
     parser.add_argument('--bichar', type=bool, default=True, help='use bichar or not')
 
     args = parser.parse_args()
