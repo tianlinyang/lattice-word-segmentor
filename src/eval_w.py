@@ -25,10 +25,11 @@ if __name__ == "__main__":
     parser.add_argument('--load_arg', default='../checkpoint/lattice_word_seg.json', help='arg json file path')
     parser.add_argument('--load_check_point', default='../checkpoint/lattice_word_seg.model', help='checkpoint path')
     parser.add_argument('--gpu',type=int, default=0, help='gpu id')
-    parser.add_argument('--eva_matrix', choices=['a', 'fa'], default='fa', help='use f1 and accuracy or accuracy alone')
+    parser.add_argument('--eva_matrix', default='fa', help='use f1 and accuracy')
     parser.add_argument('--test_file', default='../data/mws_dict/mannual-test-1500.BIES.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
     parser.add_argument('--lexicon_test_file', default='../data/mws_dict/mws.test.dict.lexicon', help='path to test file, if set to none, would use test_file path in the checkpoint file')
-    
+    # parser.add_argument('--bichar', type=bool, default=False, help='use bichar or not')
+
     args = parser.parse_args()
 
     with open(args.load_arg, 'r') as f:
@@ -91,14 +92,6 @@ if __name__ == "__main__":
             if matching_tag[i][j] == 0:
                 illegal_idx.append(str(i) + '_' + str(j))
 
-    if 'f' in args.eva_matrix:
+    test_f1, test_pre, test_rec, test_acc = evaluator.calc_score(ner_model, test_dataset, illegal_idx, is_bichar)
 
-        test_f1, test_pre, test_rec, test_acc = evaluator.calc_score(ner_model, test_dataset, illegal_idx, is_bichar)
-
-        print(jd['checkpoint'] + 'test_f1: %.4f test_rec: %.4f test_pre: %.4f test_acc: %.4f\n' % (test_f1, test_pre, test_rec, test_acc))
-
-    else:
-
-        test_acc = evaluator.calc_score(ner_model, test_dataset, illegal_idx, is_bichar)
-
-        print(jd['checkpoint'] + 'test_acc: %.4f\n' % test_acc)
+    print(jd['checkpoint'] + 'test_f1: %.4f test_rec: %.4f test_pre: %.4f test_acc: %.4f\n' % (test_f1, test_pre, test_rec, test_acc))
