@@ -8,9 +8,9 @@
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
-import model.crf as crf
-import model.utils as utils
-from model.Lattice_LSTMCell import LatticeLSTM
+import src.model.crf as crf
+import src.model.utils as utils
+from src.model.Lattice_LSTMCell import LatticeLSTM
 
 
 # from model.Lattice_LSTMCell_2 import LatticeLSTM

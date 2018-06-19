@@ -9,10 +9,10 @@ import torch
 import numpy as np
 import itertools
 
-import model.utils as utils
+import src.model.utils as utils
 from torch.autograd import Variable
 
-from model.crf import CRFDecode_vb
+from src.model.crf import CRFDecode_vb
 
 
 class eval_batch:
