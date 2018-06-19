@@ -129,8 +129,8 @@ Argument  | Description  |  Default
 ------------- | -------------  | -------------
 --load_arg   | arg json file path  | ../checkpoint/lattice\_word_seg.json
 --load\_check_point   | checkpoint path  | ../checkpoint/lattice_word_seg.model
---test_file   | apath to test file, if set to none, would use test_file path in the checkpoint file | ../data/mws_dict/mannual-test-1500.BIES.txt
---lexicon_test_file   | path to test lexiconfile, if set to none, would use lexicon\_test_file path in the checkpoint file  | ../checkpoint/lattice\_word_seg.json
+--test_file   | path to test file, if set to none, would use test_file path in the checkpoint file | ../data/mws_dict/mannual-test-1500.BIES.txt
+--lexicon_test_file   | path to test lexiconfile, if set to none, would use lexicon\_test_file path in the checkpoint file  | ../data/mws_dict/mws.test.dict.lexicon
 
 ## Performance
 
