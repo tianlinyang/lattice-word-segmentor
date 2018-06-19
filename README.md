@@ -1,7 +1,7 @@
 # lattice-word-segmentor
 
 Lattice-LSTM for multi-grained Chinese word segmentation.
-Details and Models could be found in the paper Multi-Grained Chinese Word Segmentation.
+Details and Models could be found in the paper Multi-Grained Chinese Word Segmentation with Lattice-LSTM.
 
 ## Requirements
 Python 3.6  
