@@ -1,283 +1,381 @@
 """
-.. module:: evaluator
-    :synopsis: evaluation method (f1 score and accuracy)
- 
+.. module:: crf
+    :synopsis: conditional random field
 
 """
 
 import torch
-import numpy as np
-import itertools
-
+import torch.autograd as autograd
+import torch.nn as nn
+import torch.optim as optim
+import torch.sparse as sparse
 import src.model.utils as utils
-from torch.autograd import Variable
-
-from src.model.crf import CRFDecode_vb
 
 
-class eval_batch:
-    """Base class for evaluation, provide method to calculate f1 score and accuracy 
-
-    args: 
-        packer: provide method to convert target into original space [TODO: need to improve] 
-        l_map: dictionary for labels    
-    """
-
-    def __init__(self, packer, l_map):
-        self.packer = packer
-        self.l_map = l_map
-        self.r_l_map = utils.revlut(l_map)
-
-    def reset(self):
-        """
-        re-set all states
-        """
-        self.correct_labels = 0
-        self.total_labels = 0
-        self.gold_count = 0
-        self.guess_count = 0
-        self.overlap_count = 0
-
-    def calc_f1_batch(self, decoded_data, target_data):
-        """
-        update statics for f1 score
-
-        args:
-            decoded_data (batch_size, seq_len): prediction sequence
-            target_data (batch_size, seq_len): ground-truth
-        """
-        batch_decoded = torch.unbind(decoded_data, 1)
-        batch_targets = torch.unbind(target_data, 0)
-
-        for decoded, target in zip(batch_decoded, batch_targets):
-            gold = self.packer.convert_for_eval(target)
-            # remove padding
-            length = utils.find_length_from_labels(gold, self.l_map)
-            gold = gold[:length]
-            best_path = decoded[:length]
-            correct_labels_i, total_labels_i, gold_num, predict_num, right_num = self.eval_instance_mws(best_path.numpy(),gold.numpy())
-            self.correct_labels += correct_labels_i
-            self.total_labels += total_labels_i
-            self.gold_count += gold_num
-            self.guess_count += predict_num
-            self.overlap_count += right_num
-
-    def calc_acc_batch(self, decoded_data, target_data, task=None):
-        """
-        update statics for accuracy
-
-        args:
-            decoded_data (batch_size, seq_len): prediction sequence
-            target_data (batch_size, seq_len): ground-truth
-        """
-        batch_decoded = torch.unbind(decoded_data, 1)
-        batch_targets = torch.unbind(target_data, 0)
-
-        for decoded, target in zip(batch_decoded, batch_targets):
-            gold = self.packer.convert_for_eval(target)
-            # remove padding
-            length = utils.find_length_from_labels(gold, self.l_map)
-            gold = gold[:length].numpy()
-            best_path = decoded[:length].numpy()
-
-            self.total_labels += length
-            self.correct_labels += np.sum(np.equal(best_path, gold))
-
-    def f1_score(self):
-        """
-        calculate f1 score based on statics
-        """
-        if self.guess_count == 0:
-            return 0.0, 0.0, 0.0, 0.0
-        precision = self.overlap_count / float(self.guess_count)
-        recall = self.overlap_count / float(self.gold_count)
-        if precision == 0.0 or recall == 0.0:
-            return 0.0, 0.0, 0.0, 0.0
-        f = 2 * (precision * recall) / (precision + recall)
-        accuracy = float(self.correct_labels) / self.total_labels
-        return f, precision, recall, accuracy
-
-    def acc_score(self):
-        """
-        calculate accuracy score based on statics
-        """
-        if 0 == self.total_labels:
-            return 0.0
-        accuracy = float(self.correct_labels) / self.total_labels
-        return accuracy
-
-    def eval_instance_mws(self, best_path, gold):
-        total_labels = len(best_path)
-        correct_labels = np.sum(np.equal(best_path, gold))
-
-        best_path = list(best_path)
-        gold = list(gold)
-
-        best_path = [self.r_l_map[i] for i in best_path]
-        gold = [self.r_l_map[i] for i in gold]
-
-        dev_word_list = set()
-        ans_word_list = set()
-        cnt_char = len(best_path)
-        dev_B_bef = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        ans_B_bef = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        for i in range(cnt_char):
-            dev_tag = best_path[i].split('_')
-            cnt_tag = len(dev_tag)
-            for j in range(cnt_tag):
-                if dev_tag[j] == 'E':
-                    dev_word_list.add(str(dev_B_bef[j]) + '_' + str(i))
-                elif dev_tag[j] == 'S':
-                    dev_word_list.add(str(i))
-                elif dev_tag[j] == 'B':
-                    dev_B_bef[j] = i
-        for i in range(cnt_char):
-            ans_tag = gold[i].split('_')
-            cnt_tag = len(ans_tag)
-            for j in range(cnt_tag):
-                if ans_tag[j] == 'B':
-                    ans_B_bef[j] = i
-                elif ans_tag[j] == 'S':
-                    ans_word_list.add(str(i))
-                elif ans_tag[j] == 'E':
-                    ans_word_list.add(str(ans_B_bef[j]) + '_' + str(i))
-        right_num = len(dev_word_list & ans_word_list)
-        predict_num = len(dev_word_list)
-        gold_num = len(ans_word_list)
-
-        return correct_labels, total_labels, gold_num, predict_num, right_num
-
-
-class eval_w(eval_batch):
-    """evaluation class for word level model (LSTM-CRF)
+class CRF_L(nn.Module):
+    """Conditional Random Field (CRF) layer. This version is used in Ma et al. 2016, has more parameters than CRF_S
 
     args:
-        packer: provide method to convert target into original space [TODO: need to improve]
-        l_map: dictionary for labels
-        score_type: use f1score with using 'f'
+        hidden_dim : input dim size
+        tagset_size: target_set_size
+        if_biase: whether allow bias in linear trans
+    """
+
+
+    def __init__(self, hidden_dim, tagset_size, if_bias=True):
+        super(CRF_L, self).__init__()
+        self.tagset_size = tagset_size
+        self.hidden2tag = nn.Linear(hidden_dim, self.tagset_size * self.tagset_size, bias=if_bias)
+
+    def rand_init(self):
+        """random initialization
+        """
+        utils.init_linear(self.hidden2tag)
+
+    def forward(self, feats):
+        """
+        args:
+            feats (batch_size, seq_len, hidden_dim) : input score from previous layers
+        return:
+            output from crf layer (batch_size, seq_len, tag_size, tag_size)
+        """
+        return self.hidden2tag(feats).view(-1, self.tagset_size, self.tagset_size)
+
+
+class CRF_S(nn.Module):
+    """Conditional Random Field (CRF) layer. This version is used in Lample et al. 2016, has less parameters than CRF_L.
+
+    args:
+        hidden_dim: input dim size
+        tagset_size: target_set_size
+        if_biase: whether allow bias in linear trans
 
     """
 
-    def __init__(self, packer, l_map, score_type):
-        eval_batch.__init__(self, packer, l_map)
+    def __init__(self, hidden_dim, tagset_size, if_bias=True):
+        super(CRF_S, self).__init__()
+        self.tagset_size = tagset_size
+        self.hidden2tag = nn.Linear(hidden_dim, self.tagset_size, bias=if_bias)
+        self.transitions = nn.Parameter(torch.Tensor(self.tagset_size, self.tagset_size))
 
-        self.decoder = CRFDecode_vb(len(l_map), l_map['<start>'], l_map['<pad>'])
-
-        if 'f' in score_type:
-            self.eval_b = self.calc_f1_batch
-            self.calc_s = self.f1_score
-        else:
-            self.eval_b = self.calc_acc_batch
-            self.calc_s = self.acc_score
-
-    def calc_score(self, ner_model, dataset_loader, illegal_idx, is_bichar):
+    def rand_init(self):
+        """random initialization
         """
-        calculate score for pre-selected metrics
+        utils.init_linear(self.hidden2tag)
+        self.transitions.data.zero_()
 
+    def forward(self, feats):
+        """
         args:
-            ner_model: LSTM-CRF model
-            dataset_loader: loader class for test set
+            feats (batch_size, seq_len, hidden_dim) : input score from previous layers
+        return:
+            output from crf layer ( (batch_size * seq_len), tag_size, tag_size)
         """
-        ner_model.eval()
-        self.reset()
-        for i in range(len(dataset_loader[0])):
-            fea_v, tg_v, mask_v, bi_fea_v = self.packer.repack_vb(np.asarray(dataset_loader[0][i]),
-                                                        np.asarray(dataset_loader[1][i]),
-                                                        np.asarray(dataset_loader[2][i]),
-                                                        np.asarray(dataset_loader[4][i]))
-            ner_model.zero_grad()
-            scores, hidden = ner_model(fea_v, bi_fea_v, dataset_loader[3][i], illegal_idx, self.l_map, is_bichar)
-            decoded = self.decoder.decode(scores.data, mask_v.data)
-            self.eval_b(decoded, torch.LongTensor(np.asarray(dataset_loader[1][i])).unsqueeze(0))
-        return self.calc_s()
 
-    def calc_predict(self, ner_model, dataset_loader, test_features, file_out, file_out_2, f_map):
-        """
-        calculate score for pre-selected metrics
+        scores = self.hidden2tag(feats).view(-1, self.tagset_size, 1)
+        ins_num = scores.size(0)
+        crf_scores = scores.expand(ins_num, self.tagset_size, self.tagset_size) + self.transitions.view(1, self.tagset_size, self.tagset_size).expand(ins_num, self.tagset_size, self.tagset_size)
 
-        args:
-            ner_model: LSTM-CRF model
-            dataset_loader: loader class for test set
-        """
-        ner_model.eval()
-        self.reset()
-        idx2label = {v: k for k, v in self.l_map.items()}
-        idx2word = {v: k for k, v in f_map.items()}
-        for i in range(len(dataset_loader[0])):
-            fea_v, tg_v, mask_v = self.packer.repack_vb(np.asarray(dataset_loader[0][i]),
-                                                        np.asarray(dataset_loader[1][i]),
-                                                        np.asarray(dataset_loader[2][i]))
-            ner_model.zero_grad()
-            scores, hidden = ner_model(fea_v, dataset_loader[3][i])
-            decoded = self.decoder.decode(scores.data, mask_v.data)
-            gold = [d % len(self.l_map) for d in dataset_loader[1][i]]
-            # words = [idx2word[w] for w in dataset_loader[0][i]]
-            length = utils.find_length_from_labels(gold, self.l_map)
-            gold = gold[:length]
-            words = test_features[i][:length]
-            best_path = decoded.squeeze(1).tolist()[:length]
-            gold = [idx2label[g] for g in gold]
-            best_path = [idx2label[g] for g in best_path]
-            for i in range(length):
-                file_out.write("%s %s\n"%(words[i], best_path[i]))
-            file_out.write("\n")
+        return crf_scores
 
-            sent = ''
-            pos = None
-            word = ''
-            for i in range(length):
-                if best_path[i].startswith('B'):
-                    if pos != None:
-                        sent += word + '_' + pos + ' '
-                        word = ''
-                        pos = None
-                    word += words[i]
-                    pos = best_path[i].split('-')[1]
-                else:
-                    assert pos != None
-                    word += words[i]
-            if len(word) > 0:
-                sent += word + '_' + pos + ' '
-            file_out_2.write("%s\n" % (sent))
+class CRFRepack:
+    """Packer for word level model
 
-
-class eval_wc(eval_batch):
-    """evaluation class for LM-LSTM-CRF
-
-    args: 
-        packer: provide method to convert target into original space [TODO: need to improve]
-        l_map: dictionary for labels
-        score_type: use f1score with using 'f'
-
+    args:
+        tagset_size: target_set_size
+        if_cuda: whether use GPU
     """
 
-    def __init__(self, packer, l_map, score_type):
-        eval_batch.__init__(self, packer, l_map)
+    def __init__(self, tagset_size, if_cuda):
 
-        self.decoder = CRFDecode_vb(len(l_map), l_map['<start>'], l_map['<pad>'])
+        self.tagset_size = tagset_size
+        self.if_cuda = if_cuda
 
-        if 'f' in score_type:
-            self.eval_b = self.calc_f1_batch
-            self.calc_s = self.f1_score
-        else:
-            self.eval_b = self.calc_acc_batch
-            self.calc_s = self.acc_score
+    def repack_vb(self, feature, target, mask, bichar_feature):
+        """packer for viterbi loss
 
-    def calc_score(self, ner_model, dataset_loader):
+        args:
+            feature (Seq_len, Batch_size): input feature
+            target (Seq_len, Batch_size): output target
+            mask (Seq_len, Batch_size): padding mask
+        return:
+            feature (Seq_len, Batch_size), target (Seq_len, Batch_size), mask (Seq_len, Batch_size)
         """
-        calculate score for pre-selected metrics
+
+        if self.if_cuda:
+            fea_v = autograd.Variable(torch.LongTensor(feature).unsqueeze(1)).cuda()
+            bi_fea_v = autograd.Variable(torch.LongTensor(bichar_feature).unsqueeze(1)).cuda()
+            tg_v = autograd.Variable(torch.LongTensor(target).unsqueeze(1).unsqueeze(1)).cuda()
+            mask_v = autograd.Variable(torch.ByteTensor(mask).unsqueeze(1)).cuda()
+        else:
+            fea_v = autograd.Variable(torch.LongTensor(feature).unsqueeze(1))
+            fea_v = autograd.Variable(torch.LongTensor(bichar_feature).unsqueeze(1))
+            tg_v = autograd.Variable(torch.LongTensor(target).unsqueeze(1).unsqueeze(1)).contiguous()
+            mask_v = autograd.Variable(torch.ByteTensor(mask).unsqueeze(1)).contiguous()
+        return fea_v, tg_v, mask_v, bi_fea_v
+
+    def repack_gd(self, feature, target, current):
+        """packer for greedy loss
 
         args: 
-            ner_model: LM-LSTM-CRF model
-            dataset_loader: loader class for test set
+            feature (Seq_len, Batch_size): input feature
+            target (Seq_len, Batch_size): output target
+            current (Seq_len, Batch_size): current state
+        return:
+            feature (Seq_len, Batch_size), target (Seq_len * Batch_size), current (Seq_len * Batch_size, 1, 1)
         """
-        ner_model.eval()
-        self.reset()
+        if self.if_cuda:
+            fea_v = autograd.Variable(feature.transpose(0, 1)).cuda()
+            ts_v = autograd.Variable(target.transpose(0, 1)).cuda().view(-1)
+            cs_v = autograd.Variable(current.transpose(0, 1)).cuda().view(-1, 1, 1)
+        else:
+            fea_v = autograd.Variable(feature.transpose(0, 1))
+            ts_v = autograd.Variable(target.transpose(0, 1)).contiguous().view(-1)
+            cs_v = autograd.Variable(current.transpose(0, 1)).contiguous().view(-1, 1, 1)
+        return fea_v, ts_v, cs_v
 
-        for f_f, f_p, b_f, b_p, w_f, tg, mask_v, len_v in itertools.chain.from_iterable(dataset_loader):
-            f_f, f_p, b_f, b_p, w_f, _, mask_v = self.packer.repack_vb(f_f, f_p, b_f, b_p, w_f, tg, mask_v, len_v)
-            scores = ner_model(f_f, f_p, b_f, b_p, w_f)
-            decoded = self.decoder.decode(scores.data, mask_v.data)
-            self.eval_b(decoded, tg)
+    def convert_for_eval(self, target):
+        """convert target to original decoding
 
-        return self.calc_s()
+        args: 
+            target: input labels used in training
+        return:
+            output labels used in test
+        """
+        return target % self.tagset_size
+
+
+class CRFRepack_WC:
+    """Packer for model with char-level and word-level
+
+    args:
+        tagset_size: target_set_size
+        if_cuda: whether use GPU
+        
+    """
+
+    def __init__(self, tagset_size, if_cuda):
+        
+        self.tagset_size = tagset_size
+        self.if_cuda = if_cuda
+
+    def repack_vb(self, f_f, f_p, b_f, b_p, w_f, target, mask, len_b):
+        """packer for viterbi loss
+
+        args: 
+            f_f (Char_Seq_len, Batch_size) : forward_char input feature 
+            f_p (Word_Seq_len, Batch_size) : forward_char input position
+            b_f (Char_Seq_len, Batch_size) : backward_char input feature
+            b_p (Word_Seq_len, Batch_size) : backward_char input position
+            w_f (Word_Seq_len, Batch_size) : input word feature
+            target (Seq_len, Batch_size) : output target
+            mask (Word_Seq_len, Batch_size) : padding mask
+            len_b (Batch_size, 2) : length of instances in one batch
+        return:
+            f_f (Char_Reduced_Seq_len, Batch_size), f_p (Word_Reduced_Seq_len, Batch_size), b_f (Char_Reduced_Seq_len, Batch_size), b_p (Word_Reduced_Seq_len, Batch_size), w_f (size Word_Seq_Len, Batch_size), target (Reduced_Seq_len, Batch_size), mask  (Word_Reduced_Seq_len, Batch_size)
+
+        """
+        mlen, _ = len_b.max(0)
+        mlen = mlen.squeeze()
+        ocl = b_f.size(1)
+        if self.if_cuda:
+            f_f = autograd.Variable(f_f[:, 0:mlen[0]].transpose(0, 1)).cuda()
+            f_p = autograd.Variable(f_p[:, 0:mlen[1]].transpose(0, 1)).cuda()
+            b_f = autograd.Variable(b_f[:, -mlen[0]:].transpose(0, 1)).cuda()
+            b_p = autograd.Variable((b_p[:, 0:mlen[1]] - ocl + mlen[0]).transpose(0, 1)).cuda()
+            w_f = autograd.Variable(w_f[:, 0:mlen[1]].transpose(0, 1)).cuda()
+            tg_v = autograd.Variable(target[:, 0:mlen[1]].transpose(0, 1)).unsqueeze(2).cuda()
+            mask_v = autograd.Variable(mask[:, 0:mlen[1]].transpose(0, 1)).cuda()
+        else:
+            f_f = autograd.Variable(f_f[:, 0:mlen[0]].transpose(0, 1))
+            f_p = autograd.Variable(f_p[:, 0:mlen[1]].transpose(0, 1))
+            b_f = autograd.Variable(b_f[:, -mlen[0]:].transpose(0, 1))
+            b_p = autograd.Variable((b_p[:, 0:mlen[1]] - ocl + mlen[0]).transpose(0, 1))
+            w_f = autograd.Variable(w_f[:, 0:mlen[1]].transpose(0, 1))
+            tg_v = autograd.Variable(target[:, 0:mlen[1]].transpose(0, 1)).unsqueeze(2)
+            mask_v = autograd.Variable(mask[:, 0:mlen[1]].transpose(0, 1)).contiguous()
+        return f_f, f_p, b_f, b_p, w_f, tg_v, mask_v
+
+    def convert_for_eval(self, target):
+        """convert for eval
+
+        args: 
+            target: input labels used in training
+        return:
+            output labels used in test
+        """
+        return target % self.tagset_size
+
+
+class CRFLoss_gd(nn.Module):
+    """loss for greedy decode loss, i.e., although its for CRF Layer, we calculate the loss as 
+
+    .. math::
+        \sum_{j=1}^n \log (p(\hat{y}_{j+1}|z_{j+1}, \hat{y}_{j}))
+
+    instead of 
+    
+    .. math::
+        \sum_{j=1}^n \log (\phi(\hat{y}_{j-1}, \hat{y}_j, \mathbf{z}_j)) - \log (\sum_{\mathbf{y}' \in \mathbf{Y}(\mathbf{Z})} \prod_{j=1}^n \phi(y'_{j-1}, y'_j, \mathbf{z}_j) )
+
+    args:
+        tagset_size: target_set_size
+        start_tag: ind for <start>
+        end_tag: ind for <pad>
+        average_batch: whether average the loss among batch
+    
+    """
+
+    def __init__(self, tagset_size, start_tag, end_tag, average_batch=True):
+        super(CRFLoss_gd, self).__init__()
+        self.tagset_size = tagset_size
+        self.average_batch = average_batch
+        self.crit = nn.CrossEntropyLoss(size_average=self.average_batch)
+
+    def forward(self, scores, target, current):
+        """
+        args: 
+            scores (Word_Seq_len, Batch_size, target_size_from, target_size_to): crf scores
+            target (Word_Seq_len, Batch_size): golden list
+            current (Word_Seq_len, Batch_size): current state
+        return:
+            crf greedy loss
+        """
+        ins_num = current.size(0)
+        current = current.expand(ins_num, 1, self.tagset_size)
+        scores = scores.view(ins_num, self.tagset_size, self.tagset_size)
+        current_score = torch.gather(scores, 1, current).squeeze()
+        return self.crit(current_score, target)
+
+
+class CRFLoss_vb(nn.Module):
+    """loss for viterbi decode
+
+    .. math::
+        \sum_{j=1}^n \log (\phi(\hat{y}_{j-1}, \hat{y}_j, \mathbf{z}_j)) - \log (\sum_{\mathbf{y}' \in \mathbf{Y}(\mathbf{Z})} \prod_{j=1}^n \phi(y'_{j-1}, y'_j, \mathbf{z}_j) )
+
+    args:
+        tagset_size: target_set_size
+        start_tag: ind for <start>
+        end_tag: ind for <pad>
+        average_batch: whether average the loss among batch
+        
+    """
+
+    def __init__(self, tagset_size, start_tag, end_tag, average_batch=True):
+        super(CRFLoss_vb, self).__init__()
+        self.tagset_size = tagset_size
+        self.start_tag = start_tag
+        self.end_tag = end_tag
+        self.average_batch = average_batch
+
+    def forward(self, scores, target, mask):
+        """
+        args:
+            scores (seq_len, bat_size, target_size_from, target_size_to) : crf scores
+            target (seq_len, bat_size, 1) : golden state
+            mask (size seq_len, bat_size) : mask for padding
+        return:
+            loss
+        """
+
+        # calculate batch size and seq len
+        seq_len = scores.size(0)
+        bat_size = scores.size(1)
+
+        # calculate sentence score
+        tg_energy = torch.gather(scores.view(seq_len, bat_size, -1), 2, target).view(seq_len, bat_size)  # seq_len * bat_size
+        tg_energy = tg_energy.masked_select(mask).sum()
+
+        # calculate forward partition score
+
+        # build iter
+        seq_iter = enumerate(scores)
+        # the first score should start with <start>
+        _, inivalues = seq_iter.__next__()  # bat_size * from_target_size * to_target_size
+        # only need start from start_tag
+        partition = inivalues[:, self.start_tag, :].clone()  # bat_size * to_target_size
+        # iter over last scores
+        for idx, cur_values in seq_iter:
+            # previous to_target is current from_target
+            # partition: previous results log(exp(from_target)), #(batch_size * from_target)
+            # cur_values: bat_size * from_target * to_target
+            cur_values = cur_values + partition.contiguous().view(bat_size, self.tagset_size, 1).expand(bat_size, self.tagset_size, self.tagset_size)
+            cur_partition = utils.log_sum_exp(cur_values, self.tagset_size)
+                  # (bat_size * from_target * to_target) -> (bat_size * to_target)
+            partition = utils.switch(partition, cur_partition, mask[idx].view(bat_size, 1).expand(bat_size, self.tagset_size)).view(bat_size, -1)
+            #mask_idx = mask[idx, :].view(bat_size, 1).expand(bat_size, self.tagset_size)
+            #partition.masked_scatter_(mask_idx, cur_partition.masked_select(mask_idx))  #0 for partition, 1 for cur_partition
+            
+        #only need end at end_tag
+        partition = partition[:, self.end_tag].sum()
+        # average = mask.sum()
+
+        # average_batch
+        if self.average_batch:
+            loss = (partition - tg_energy) / bat_size
+        else:
+            loss = (partition - tg_energy)
+
+        return loss
+
+class CRFDecode_vb():
+    """Batch-mode viterbi decode
+
+    args:
+        tagset_size: target_set_size
+        start_tag: ind for <start>
+        end_tag: ind for <pad>
+        average_batch: whether average the loss among batch
+        
+    """
+
+    def __init__(self, tagset_size, start_tag, end_tag, average_batch=True):
+        self.tagset_size = tagset_size
+        self.start_tag = start_tag
+        self.end_tag = end_tag
+        self.average_batch = average_batch
+
+    def decode(self, scores, mask):
+        """Find the optimal path with viterbe decode
+
+        args:
+            scores (size seq_len, bat_size, target_size_from, target_size_to) : crf scores 
+            mask (seq_len, bat_size) : mask for padding
+        return:
+            decoded sequence (size seq_len, bat_size)
+        """
+        # calculate batch size and seq len
+
+        seq_len = scores.size(0)
+        bat_size = scores.size(1)
+
+        mask = 1 - mask
+        decode_idx = torch.LongTensor(seq_len-1, bat_size)
+
+        # calculate forward score and checkpoint
+
+        # build iter
+        seq_iter = enumerate(scores)
+        # the first score should start with <start>
+        _, inivalues = seq_iter.__next__()  # bat_size * from_target_size * to_target_size
+        # only need start from start_tag
+        forscores = inivalues[:, self.start_tag, :]  # bat_size * to_target_size
+        back_points = list()
+        # iter over last scores
+        for idx, cur_values in seq_iter:
+            # previous to_target is current from_target
+            # partition: previous results log(exp(from_target)), #(batch_size * from_target)
+            # cur_values: bat_size * from_target * to_target
+            cur_values = cur_values + forscores.contiguous().view(bat_size, self.tagset_size, 1).expand(bat_size, self.tagset_size, self.tagset_size)
+
+            forscores, cur_bp = torch.max(cur_values, 1)
+            cur_bp.masked_fill_(mask[idx].view(bat_size, 1).expand(bat_size, self.tagset_size), self.end_tag)
+            back_points.append(cur_bp)
+
+        pointer = back_points[-1][:, self.end_tag]
+        decode_idx[-1] = pointer
+        for idx in range(len(back_points)-2, -1, -1):
+            pointer = torch.gather(back_points[idx], 1, pointer.contiguous().view(bat_size, 1))
+            decode_idx[idx] = pointer
+        return decode_idx
