@@ -52,7 +52,7 @@ if __name__ == "__main__":
     parser.add_argument('--clip_grad', type=float, default=5.0, help='grad clip at')
     parser.add_argument('--small_crf', action='store_false', help='use small crf instead of large crf, refer model.crf module for more details')
     parser.add_argument('--mini_count', type=float, default=1, help='thresholds to replace rare words with <unk>')
-    parser.add_argument('--eva_matrix', choices=['a', 'fa'], default='fa', help='use f1 and accuracy or accuracy alone')
+    parser.add_argument('--eva_matrix', default='fa', help='use f1 and accuracy')
     parser.add_argument('--patience', type=int, default=20, help='patience for early stop')
     parser.add_argument('--least_iters', type=int, default=50, help='at least train how many epochs before stop')
     parser.add_argument('--shrink_embedding', type=bool, default=True, help='shrink the embedding dictionary to corpus (open this if pre-trained embedding dictionary is too large, but disable this may yield better results on external corpus)')
