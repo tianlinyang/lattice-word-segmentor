@@ -9,7 +9,7 @@ torch 0.3.0
 ## Data
 We use multi-grained chinese segmentation datasets that are built by [Gong and Li et al.（2017）](http://www.aclweb.org/anthology/D/D17/D17-1072.pdf). And you could find details in their paper.
 ## Input format
-Each line includes each character and its label. Sentences are splited with a null line.  
+Each line includes each character and its multi-grained label. Sentences are splited with a null line.  
 
 ```
 戴 B
