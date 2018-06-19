@@ -66,7 +66,7 @@ def get_words(word_list, sentence):
 def get_words_list(input_file, output_file, emb_file):
 
     word_list = get_dict_list(emb_file)
-    file_out = codecs.open(output_file, "w", encoding="utf-8")
+    file_out = codecs.open(output_file, 'w', encoding="utf-8")
 
     with codecs.open(input_file, 'r', 'utf-8') as f:
         print(input_file)
@@ -104,8 +104,8 @@ def test_data_token_len(input_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Learning with BLSTM-CRF')
-    parser.add_argument('--input_text_file', default='', help='input file')
-    parser.add_argument('--out_lexicon_file', default='', help='out lexicon file')
-    parser.add_argument('--dict_file', default='', help='each sentence in input file get its own lexicon from this emd file which could be treated as a dict file')
+    parser.add_argument('--input_text_file', default='../data/mws_dict/mannual-test-1500.BIES.txt', help='input file')
+    parser.add_argument('--out_lexicon_file', default='../data/mws_dict/mws.test.dict.lexicon', help='out lexicon file')
+    parser.add_argument('--dict_file', default='/data/disk1/zhangwenjing/chinesegigawordv5/chinesegigawordv5.mws.structured_skipngram.50d.txt', help='each sentence in input file get its own lexicon from this emd file which could be treated as a dict file')
     args = parser.parse_args()
     get_words_list(args.input_text_file, args.out_lexicon_file, args.dict_file)
