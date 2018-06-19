@@ -7,10 +7,10 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
 import codecs
-from model.crf import *
-from model.lstm_crf import *
-import model.utils as utils
-from model.evaluator import eval_w
+from src.model.crf import *
+from src.model.lstm_crf import *
+import src.model.utils as utils
+from src.model.evaluator import eval_w
 
 import argparse
 import json
@@ -22,13 +22,13 @@ import functools
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluating BLSTM-CRF')
-    parser.add_argument('--load_arg', default='./checkpoint/lattice_word_seg.json', help='arg json file path')
-    parser.add_argument('--load_check_point', default='./checkpoint/lattice_word_seg.model', help='checkpoint path')
+    parser.add_argument('--load_arg', default='../checkpoint/lattice_word_seg.json', help='arg json file path')
+    parser.add_argument('--load_check_point', default='../checkpoint/lattice_word_seg.model', help='checkpoint path')
     parser.add_argument('--gpu',type=int, default=0, help='gpu id')
     parser.add_argument('--eva_matrix', choices=['a', 'fa'], default='fa', help='use f1 and accuracy or accuracy alone')
-    parser.add_argument('--test_file', default='./data/test.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
-    parser.add_argument('--lexicon_test_file', default='./data/lexicon.test.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
-    parser.add_argument('--bichar', type=bool, default=True, help='use bichar or not')
+    parser.add_argument('--test_file', default='../data/mws_dict/mannual-test-1500.BIES.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
+    parser.add_argument('--lexicon_test_file', default='../data/mws_dict/mws.test.dict.lexicon', help='path to test file, if set to none, would use test_file path in the checkpoint file')
+    # parser.add_argument('--bichar', type=bool, default=False, help='use bichar or not')
 
     args = parser.parse_args()
 
@@ -42,6 +42,7 @@ if __name__ == "__main__":
 
     lexicon_f_map = checkpoint_file['lexicon_f_map']
     bichar_f_map = checkpoint_file['bichar_f_map']
+    is_bichar = checkpoint_file['bichar']
 
     if args.gpu >= 0:
         torch.cuda.set_device(args.gpu)
@@ -68,7 +69,7 @@ if __name__ == "__main__":
                                                   test_bichar_features, bichar_f_map, jd['caseless'])
 
     # build model
-    ner_model = LSTM_CRF(len(f_map), len(bichar_f_map), len(lexicon_f_map), len(l_map), jd['embedding_dim'], jd['hidden'], jd['layers'], jd['drop_out'], args.gpu, jd['bidirectional'], jd['bichar'], large_CRF=jd['small_crf'])
+    ner_model = LSTM_CRF(len(f_map), len(bichar_f_map), len(lexicon_f_map), len(l_map), jd['embedding_dim'], jd['hidden'], jd['layers'], jd['drop_out'], args.gpu, is_bichar, large_CRF=jd['small_crf'])
 
     ner_model.load_state_dict(checkpoint_file['state_dict'])
 
@@ -93,12 +94,12 @@ if __name__ == "__main__":
 
     if 'f' in args.eva_matrix:
 
-        test_f1, test_pre, test_rec, test_acc = evaluator.calc_score(ner_model, test_dataset, illegal_idx, args.bichar)
+        test_f1, test_pre, test_rec, test_acc = evaluator.calc_score(ner_model, test_dataset, illegal_idx, is_bichar)
 
         print(jd['checkpoint'] + 'test_f1: %.4f test_rec: %.4f test_pre: %.4f test_acc: %.4f\n' % (test_f1, test_pre, test_rec, test_acc))
 
     else:
 
-        test_acc = evaluator.calc_score(ner_model, test_dataset, illegal_idx, args.bichar)
+        test_acc = evaluator.calc_score(ner_model, test_dataset, illegal_idx, is_bichar)
 
         print(jd['checkpoint'] + 'test_acc: %.4f\n' % test_acc)
