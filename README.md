@@ -7,7 +7,7 @@ Details and Models could be found in the paper Multi-Grained Chinese Word Segmen
 Python 3.6  
 torch 0.3.0
 ## Data
-We use multi-grained chinese segmentation datasets that was built by [Gong and Li et al.（2017）](http://www.aclweb.org/anthology/D/D17/D17-1072.pdf). And you could find details in their paper.
+We use multi-grained chinese segmentation datasets that are built by [Gong and Li et al.（2017）](http://www.aclweb.org/anthology/D/D17/D17-1072.pdf). And you could find details in their paper.
 ## Input format
 Each line includes each character and its label. Sentences are splited with a null line.  
 
