@@ -9,7 +9,7 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
 import torch.sparse as sparse
-import model.utils as utils
+import src.model.utils as utils
 
 
 class CRF_L(nn.Module):
