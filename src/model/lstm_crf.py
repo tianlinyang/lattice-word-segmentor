@@ -104,6 +104,9 @@ class LSTM_CRF(nn.Module):
         self.char_embeds.weight = nn.Parameter(pre_embeddings[0])
         if len(pre_embeddings) == 2:
             self.word_embeds.weight = nn.Parameter(pre_embeddings[1])
+        if len(pre_embeddings) == 3:
+            self.word_embeds.weight = nn.Parameter(pre_embeddings[1])
+            self.bichar_embeds.weight = nn.Parameter(pre_embeddings[2])
 
     def rand_init(self, init_char_embedding=False, init_word_embedding=False, init_bichar_embedding=False):
         """
