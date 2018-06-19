@@ -39,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument('--epoch', type=int, default=200, help='maximum epoch number')
     parser.add_argument('--start_epoch', type=int, default=0, help='start epoch idx')
     parser.add_argument('--caseless', action='store_true', help='caseless or not')
-    parser.add_argument('--embedding_dim', type=int, default=50, help='dimension for word embedding')
+    parser.add_argument('--embedding_dim', type=int, default=50, help='dimension for character/word/bichar embedding')
     parser.add_argument('--layers', type=int, default=1, help='number of lstm layers')
     parser.add_argument('--lr', type=float, default=0.015, help='initial learning rate')
     parser.add_argument('--lr_decay', type=float, default=0.05, help='decay ratio of learning rate')
