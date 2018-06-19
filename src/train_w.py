@@ -2,10 +2,10 @@
 from __future__ import print_function
 import time
 import codecs
-from model.crf import *
-from model.lstm_crf import *
-import model.utils as utils
-from model.evaluator import eval_w
+from src.model.crf import *
+from src.model.lstm_crf import *
+import src.model.utils as utils
+from src.model.evaluator import eval_w
 
 import argparse
 import numpy as np
@@ -22,18 +22,18 @@ if __name__ == "__main__":
     parser.add_argument('--rand_char_embedding', type=bool, default=True, help='random initialize char embedding')
     parser.add_argument('--rand_word_embedding', type=bool, default=True, help='random initialize word embedding')
     parser.add_argument('--rand_bichar_embedding', type=bool, default=True, help='random initialize bichar embedding')
-    parser.add_argument('--emb_file', default='', help='path to pre-trained embedding')
-    parser.add_argument('--train_file', default='', help='train file path')
-    parser.add_argument('--dev_file', default='', help='dev file path')
-    parser.add_argument('--test_file', default='', help='test file path')
-    parser.add_argument('--lexicon_train_dir', default='', help='train lexicon file path')
-    parser.add_argument('--lexicon_dev_dir', default='', help='dev lexicon file path')
-    parser.add_argument('--lexicon_test_dir', default='', help='test lexicon file path')
+    parser.add_argument('--emb_file', default='/data/disk1/zhangwenjing/chinesegigawordv5/chinesegigawordv5.mws.structured_skipngram.50d.txt', help='path to pre-trained embedding')
+    parser.add_argument('--train_file', default='../data/mws_dict/mannual-test-1500.BIES.txt', help='train file path')
+    parser.add_argument('--dev_file', default='../data/mws_dict/mannual-test-1500.BIES.txt', help='dev file path')
+    parser.add_argument('--test_file', default='../data/mws_dict/mannual-test-1500.BIES.txt', help='test file path')
+    parser.add_argument('--lexicon_train_dir', default='../data/mws_dict/mws.test.dict.lexicon', help='train lexicon file path')
+    parser.add_argument('--lexicon_dev_dir', default='../data/mws_dict/mws.test.dict.lexicon', help='dev lexicon file path')
+    parser.add_argument('--lexicon_test_dir', default='../data/mws_dict/mws.test.dict.lexicon', help='test lexicon file path')
 
     parser.add_argument('--gpu', type=int, default=0, help='gpu id, set to -1 if use cpu mode')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('--unk', default='unk', help='unknow-token in pre-trained embedding')
-    parser.add_argument('--checkpoint', default='', help='path to checkpoint prefix')
+    parser.add_argument('--checkpoint', default='../checkpoint/', help='path to checkpoint prefix')
     parser.add_argument('--hidden', type=int, default=200, help='hidden dimension')
     parser.add_argument('--drop_out', type=float, default=0.5, help='dropout ratio')
     parser.add_argument('--epoch', type=int, default=200, help='maximum epoch number')
@@ -285,6 +285,7 @@ if __name__ == "__main__":
                     'lexicon_f_map': lexicon_f_map,
                     'bichar_f_map': bichar_f_map,
                     'l_map': l_map,
+                    'bichar': args.bichar,
                 }, {'track_list': track_list,
                     'args': vars(args)
                     }, args.checkpoint + 'lattice_word_seg')
