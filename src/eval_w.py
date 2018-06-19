@@ -28,8 +28,7 @@ if __name__ == "__main__":
     parser.add_argument('--eva_matrix', choices=['a', 'fa'], default='fa', help='use f1 and accuracy or accuracy alone')
     parser.add_argument('--test_file', default='../data/mws_dict/mannual-test-1500.BIES.txt', help='path to test file, if set to none, would use test_file path in the checkpoint file')
     parser.add_argument('--lexicon_test_file', default='../data/mws_dict/mws.test.dict.lexicon', help='path to test file, if set to none, would use test_file path in the checkpoint file')
-    # parser.add_argument('--bichar', type=bool, default=False, help='use bichar or not')
-
+    
     args = parser.parse_args()
 
     with open(args.load_arg, 'r') as f:
