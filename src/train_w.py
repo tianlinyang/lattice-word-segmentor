@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser.add_argument('--patience', type=int, default=20, help='patience for early stop')
     parser.add_argument('--least_iters', type=int, default=50, help='at least train how many epochs before stop')
     parser.add_argument('--shrink_embedding', type=bool, default=True, help='shrink the embedding dictionary to corpus (open this if pre-trained embedding dictionary is too large, but disable this may yield better results on external corpus)')
-    parser.add_argument('--bichar', type=bool, default=True, help='use bichar or not')
+    parser.add_argument('--bichar', type=bool, default=False, help='use bichar or not')
     args = parser.parse_args()
 
     if args.gpu >= 0:
