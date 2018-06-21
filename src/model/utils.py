@@ -19,7 +19,7 @@ import json
 import torch.nn as nn
 import torch.nn.init
 
-from src.model.ner_dataset import *
+from model.ner_dataset import *
 
 zip = getattr(itertools, 'izip', zip)
 
