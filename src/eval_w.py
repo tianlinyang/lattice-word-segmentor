@@ -7,10 +7,10 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
 import codecs
-from src.model.crf import *
-from src.model.lstm_crf import *
-import src.model.utils as utils
-from src.model.evaluator import eval_w
+from model.crf import *
+from model.lstm_crf import *
+import model.utils as utils
+from model.evaluator import eval_w
 
 import argparse
 import json
