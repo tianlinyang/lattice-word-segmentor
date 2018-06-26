@@ -141,5 +141,5 @@ Gong and Li et al.（2017）(+bichar) | 96.59  | 95.97
 Our model（binary as dict）  | 95.97  | 95.52
 Our model（binary as dict）(+bichar)  | 96.96  | 96.18
 Our model（now）(epoch 9)  | 96.78  | 96.29
-Our model（now)(+pretrain emd）(epoch 44)  | 96.50 | 96.20
+Our model（now)(+pretrain emd）(epoch 56)  | 96.64 | 96.25
 Our model（now)(+bichar）(epoch 6)  | 96.94 | 96.39
